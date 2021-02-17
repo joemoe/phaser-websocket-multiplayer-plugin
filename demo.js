@@ -22,13 +22,29 @@ class DemoScene extends Phaser.Scene {
 	        gameObject.y = dragY;
 	    });
 
+	    this.input.keyboard.on('keydown-A', function() {
+	    	let children = this.children.getChildren();
+	    	if(children.length < 2) return;
+	    	let a = children[0];
+	    	let b = children[Math.floor(Math.random() * (children.length - 2)) + 1];
+	    	this.shake(a, b);
+	    }, this);
+
 		this.multiplayer.event.on('open', this.initConnection, this);
-		this.multiplayer.connect();
-		this.multiplayer.track(circle, this.featureExtractor);
 		this.multiplayer.event.on('create', this.createObject, this);
 		this.multiplayer.event.on('update', this.updateObject, this);
 		this.multiplayer.event.on('pause', this.pauseObject, this);
 		this.multiplayer.event.on('kill', this.killObject, this);
+
+		this.multiplayer.event.on('action.start.shake', this.shakeActionStart, this);
+		this.multiplayer.event.on('action.start.stop', this.shakeActionStop, this);
+
+		this.multiplayer.track(circle, this.featureExtractor);
+
+		this.multiplayer.connect();
+
+
+
 	}
 
 	initConnection() {
@@ -47,7 +63,8 @@ class DemoScene extends Phaser.Scene {
 	}
 
 	createObject(data, id) {
-		this.multiplayer.registerObject(id, this.add.circle(data.x, data.y, 20, data.color));
+		let circle = this.add.circle(data.x, data.y, 20, data.color);
+		this.multiplayer.registerObject(id, circle);
 	}
 
 	updateObject(object, data) {
@@ -62,6 +79,28 @@ class DemoScene extends Phaser.Scene {
 
 	killObject(object, id) {
 		object.destroy();
+	}
+
+	shakeActionStart(objects) {
+		this.shake(objects[0], objects[1], false);
+	}
+	
+	shakeActionStop(objects) {
+	}
+
+	shake(a, b, broadcast = true) {
+		if(broadcast) this.multiplayer.startAction('shake', [a.getData('id'), b.getData('id')]);
+		var tween = this.tweens.add({
+	        targets: [a, b],
+	        scaleX: 2,
+	        scaleY: 2,
+	        ease: 'Power1',
+	        duration: 50,
+	        yoyo: true,
+	        repeat: 3,
+	        onComplete: function () { if(broadcast) this.multiplayer.stopAction('shake')},
+	        callbackScope: this
+	    });
 	}
 }
 

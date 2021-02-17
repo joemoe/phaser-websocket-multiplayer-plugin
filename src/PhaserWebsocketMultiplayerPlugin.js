@@ -1,11 +1,30 @@
 const MESSAGE_TYPE = {
 	UPDATE_OBJECT: 'update.object',
-	KILL_OBJECT: 'kill.object'
+	KILL_OBJECT: 'kill.object',
+	ACTION_START: 'action.start',
+	ACTION_STOP: 'action.stop'
+
 }
 
 export default class PhaserWebsocketMultiplayerPlugin extends Phaser.Plugins.BasePlugin {
 	constructor(pluginManager) {
 		super('PhaserWebsocketMultiplayerPlugin', pluginManager);
+		this.game = pluginManager.game;
+		this.event = new Phaser.Events.EventEmitter();
+
+		this.socket = null;
+		
+		this.id = ((1<<24)*Math.random() | 0).toString(16);
+		this.name = null;
+		
+		this.localObject = null;
+		this.featureExtractor = null;
+
+		this.broadcastInterval = null;
+		this.checkTimeoutsInterval = null;
+
+		this.objectRegistry = {};
+		this.objectLastseen = {};
 
 		this.config =  {
 			broadcastInterval: 1000,
@@ -14,22 +33,8 @@ export default class PhaserWebsocketMultiplayerPlugin extends Phaser.Plugins.Bas
 			checkTimeoutsInterval: 100,
 			url: null,
 			autoConnect: false,
-			debug: true
+			debug: false
 		};
-		this.game = pluginManager.game;
-
-		this.socket = null;
-		this.name = null;
-		this.id = ((1<<24)*Math.random() | 0).toString(16);
-		this.localObject = null;
-		this.featureExtractor = null;
-		this.broadcastInterval = null;
-		this.checkTimeoutsInterval = null;
-
-		this.objectRegistry = {};
-		this.objectLastseen = {};
-
-		this.event = new Phaser.Events.EventEmitter();
 	}
 
 	init(config = {}) {
@@ -56,7 +61,9 @@ export default class PhaserWebsocketMultiplayerPlugin extends Phaser.Plugins.Bas
 
 	onSocketMessage(event) {
 		let data = JSON.parse(event.data);
+		
 		if(data.id == this.id) return;
+
 		switch(data.type) {
 			case MESSAGE_TYPE.UPDATE_OBJECT:
 				this.updateObject(data);
@@ -64,19 +71,30 @@ export default class PhaserWebsocketMultiplayerPlugin extends Phaser.Plugins.Bas
 			case MESSAGE_TYPE.KILL_OBJECT:
 				this.killObject(data.id);
 			break;
+			case MESSAGE_TYPE.ACTION_START:
+				let objects = [];
+
+				for(let i = 0; i < data.params.length; i++) {
+					if(this.objectRegistry[data.params[i]])
+						objects.push(this.objectRegistry[data.params[i]]);
+				}
+
+				this.event.emit('action.start.' + data.actionType, objects);
+			break;
+			case MESSAGE_TYPE.ACTION_STOP:
+				this.event.emit('action.stop.' + data.actionType);
+			break;
 		}
 	}
 
 	onSocketError(event) {
-
+		this.event.emit('socket.error', event);
 	}
 
 	onSocketClose(event) {
 		clearInterval(this.checkTimeoutsInterval);
-	}
-
-	setName(name) {
-		this.name = name;
+		this.stopBroadcast();
+		this.event.emit('socket.close');
 	}
 
 	checkTimeouts() {
@@ -87,6 +105,16 @@ export default class PhaserWebsocketMultiplayerPlugin extends Phaser.Plugins.Bas
     		if(currentTime - value > this.config.deadTimeout)
     			this.killObject(key);
 		});
+	}
+
+	setName(name) {
+		this.name = name;
+	}
+
+
+	registerObject(id, object) {
+		this.objectRegistry[id] = object;
+		object.setData('id', id);
 	}
 
 	pauseObject(id) {
@@ -111,17 +139,19 @@ export default class PhaserWebsocketMultiplayerPlugin extends Phaser.Plugins.Bas
 
 	}
 
+
 	track(object, featureExtractor) {
 		this.localObject = object;
+		object.setData('id', this.id);
 		this.featureExtractor = featureExtractor;
-	}
-
-	registerObject(id, object) {
-		this.objectRegistry[id] = object;
+		this.registerObject(this.id, object);
 	}
 
 	startBroadcast() {
-		this.broadcastInterval = setInterval(() => { this.broadcast(); }, this.config.broadcastInterval);
+		this.broadcastInterval = setInterval(
+			() => { this.broadcast(); },
+			this.config.broadcastInterval
+		);
 	}
 
 	broadcast() {
@@ -133,8 +163,27 @@ export default class PhaserWebsocketMultiplayerPlugin extends Phaser.Plugins.Bas
 	}
 
 	stopBroadcast() {
-		window.clearInterval(this.broadcastInterval);
+		clearInterval(this.broadcastInterval);
 	}
+
+
+	startAction(actionType, params = null) {
+		this.socket.send(JSON.stringify({
+			id: this.id,
+			type: MESSAGE_TYPE.ACTION_START,
+			actionType: actionType,
+			params: params
+		}));
+	}
+
+	stopAction(actionType) {
+		this.socket.send(JSON.stringify({
+			id: this.id,
+			type: MESSAGE_TYPE.ACTION_STOP,
+			actionType: actionType
+		}));
+	}
+
 
 	log(msg, data = ' ') {
 		if(this.config.debug)
