@@ -30,11 +30,12 @@ class DemoScene extends Phaser.Scene {
 	    	this.shake(a, b);
 	    }, this);
 
-		this.multiplayer.event.on('open', this.initConnection, this);
-		this.multiplayer.event.on('create', this.createObject, this);
-		this.multiplayer.event.on('update', this.updateObject, this);
-		this.multiplayer.event.on('pause', this.pauseObject, this);
-		this.multiplayer.event.on('kill', this.killObject, this);
+		this.multiplayer.event.on('socket.open', this.initConnection, this);
+
+		this.multiplayer.event.on('object.create', this.createObject, this);
+		this.multiplayer.event.on('object.update', this.updateObject, this);
+		this.multiplayer.event.on('object.pause', this.pauseObject, this);
+		this.multiplayer.event.on('object.kill', this.killObject, this);
 
 		this.multiplayer.event.on('action.start.shake', this.shakeActionStart, this);
 		this.multiplayer.event.on('action.start.stop', this.shakeActionStop, this);
@@ -81,11 +82,11 @@ class DemoScene extends Phaser.Scene {
 		object.destroy();
 	}
 
-	shakeActionStart(objects) {
+	shakeActionStart(id, objects) {
 		this.shake(objects[0], objects[1], false);
 	}
 	
-	shakeActionStop(objects) {
+	shakeActionStop(id) {
 	}
 
 	shake(a, b, broadcast = true) {
