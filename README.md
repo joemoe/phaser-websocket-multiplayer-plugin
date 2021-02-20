@@ -72,19 +72,119 @@ let game = new Phaser.Game({
 ```
 
 
-### Open Game Mode
+### Initializing the plugin
 
-In this mode each client can register an object to be tracked. There is a handler function
-to extract the required features of an object. When a client receives information
-about an object it wasn't aware of yet, it emits an create event.
-When the client receives an update about an object it already has created it
-emits an update event. When the client hasn't received an update for a given time
-it emits disconnected message, when after another watermark still no update from
-the object it assumes the object is dead and emits a kill
-event.
+Due to Phasers internal plugin system and the `mapping` parameter passed in the 
+configuration an instance of this plugin will be available in every scene in 
+the property `multiplayer` (for sure this, changes when the value of the 
+`mapping` property is changed).
+
+Once in your game (you might want to assemble a list of players in one scene, 
+run the game in another and show some scores in an additional one) you need to 
+call 
+
+```
+this.multiplayer.connect();
+```
+with an optional `url` parameter, this is not required to execute when you
+set the config parameter `autoConnect` to `true`.
+
+You may then register all events and set up objects to track in e.g. `create` in
+the Phaser game loop. Broadcasting messages should only happen after the 
+connection is ready.
+
+```javascript
+...
+create() {
+	this.multiplayer.event.on('socket.open', this.initConnection, this);
+	this.multiplayer.connect();
+}
+initConnection() {
+	this.multiplayer.startBroadcast();
+}
+...
+```
 
 
-### API
+### Tracking and broadcasting a local game object.
+
+To map a local game object to remote clients you need to implement a feature
+extraction function. This allows the flexibility broadcast any property or data
+you need to keep the local and remote presentation of the object in sync.
+After you registered an object to track, you can start broadcasting it.
+Depending on the configured `broadcastInterval` the `featureExtractor` is called
+and broadcasted along with some defaults.
+
+:raising_hand: Each object tracked in the system gets its own id. This is passed
+to all the callback functions.
+
+:raising_hand: For now only one object can be tracked.
+
+Implement the feature extractor:
+
+```javascript
+featureExtractor(object) {
+	return {
+		x: object.x,
+		y: object.y,
+		color: object.getData('color')
+	}
+}
+```
+
+Register the object to track (e.g. in `create`):
+
+```javascript
+this.multiplayer.track(circle, this.featureExtractor);
+```
+
+Start broadcasting, when the socket connection is established:
+
+```javascript
+this.multiplayer.startBroadcast();
+```
+
+### Representing remote objects
+
+Remote objects have its own lifecycle. They can be `created`, `updated`, `paused`
+and `killed`. For all of those this plugin implemented events.
+
+```javascript
+this.multiplayer.event.on('object.create', this.createObject, this);
+this.multiplayer.event.on('object.update', this.updateObject, this);
+this.multiplayer.event.on('object.pause', this.pauseObject, this);
+this.multiplayer.event.on('object.kill', this.killObject, this);
+```
+
+The implementation of callback functions could look like this:
+
+```javascript
+createObject(data, id) {
+	let circle = this.add.circle(data.x, data.y, 20, data.color);
+	this.multiplayer.registerObject(id, circle);
+}
+
+updateObject(object, data, id) {
+	object.x = data.x;
+	object.y = data.y;
+	object.setAlpha(1);
+}
+
+pauseObject(object, id) {
+	object.setAlpha(0.1);
+}
+
+killObject(object, id) {
+	object.destroy();
+}
+```
+
+Note the `registerObject` call on the plugin in the `createObject` method.
+This is not ideal yet, but it helps the plugin to further pass the object to the
+other callback functions for ease of use.
+
+
+### API documentation
 
 #### `connect(url = '')`
 
@@ -191,11 +291,15 @@ The plugin contains an `EventEmitter` in `events` which dispatches relevant even
 ## Core concepts
 
 
-### Stateless
+### Stateless & single point of truth
 
 This plugin doesn't support holding a state anywhere besides in the clients.
 That's why the state always needs to be broadcasted with every message. 
-See `id` and `name`.
+See `id` and `name`. This makes it also a bit tricky to maintain e.g. a 
+high score list. The best way to manage such things is on the one hand to
+clearly define ownership of data. So e.g. there could be one client who also 
+acts as the main and owns the high score lost, or every client is in charge of
+it's own score.
 
 
 ### Broadcasting
@@ -208,9 +312,10 @@ about auth or other security concepts _(yet)_.
 
 ### Dealing with game objects
 
-The plugin assumes that it is dealing with game objects as synched objects, but
+The plugin assumes that it is dealing with game objects as synced objects, but
 this is the only assumption it takes. Everything else needs to be implemented
-within the game.
+within the game. There are local (maintained by the local client) and remote
+game objects (maintained by other clients).
 
 
 ## Related
