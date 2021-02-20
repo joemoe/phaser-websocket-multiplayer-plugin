@@ -58,7 +58,7 @@ let game = new Phaser.Game({
 			mapping: 'multiplayer',
 			start: true,
 			data: {
-				url: "wss://"				// the url of the websocket
+				url: "wss://",				// the url of the websocket
 				broadcastInterval: 200,		// the interval in milliseconds in which the state of the tracked object is broadcasted
 				pauseTimeout: 5000,			// the time (milliseconds) after which a remote object becomes inactive
 				deadTimeout: 15000,			// the time after which a remote object is removed
