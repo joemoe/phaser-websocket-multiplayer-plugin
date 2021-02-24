@@ -318,6 +318,14 @@ within the game. There are local (maintained by the local client) and remote
 game objects (maintained by other clients).
 
 
+## Develop
+
+If you are modifying this plugin and want to minify the JavaScript code in
+`dist` and `demo` run `sh build.sh`. 
+
+:point_up: This makes a call to [https://javascript-minifier.com/curl](https://javascript-minifier.com/curl).
+
+
 ## Related
 
 * Official & bundled [Phaser plugins](https://github.com/photonstorm/phaser-plugins)

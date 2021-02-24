@@ -1,0 +1,2 @@
+curl -X POST -s --data-urlencode 'input@src/PhaserWebsocketMultiplayerPlugin.js' https://javascript-minifier.com/raw > dist/phaser-websocket-multiplayer-plugin.min.js
+cp dist/phaser-websocket-multiplayer-plugin.min.js demo/phaser-websocket-multiplayer-plugin.min.js

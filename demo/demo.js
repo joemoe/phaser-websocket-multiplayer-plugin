@@ -1,4 +1,4 @@
-import PhaserWebsocketMultiplayerPlugin from './src/PhaserWebsocketMultiplayerPlugin.js'
+import PhaserWebsocketMultiplayerPlugin from './phaser-websocket-multiplayer-plugin.min.js'
 
 class DemoScene extends Phaser.Scene {
 	constructor() {
